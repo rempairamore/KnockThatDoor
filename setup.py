@@ -21,8 +21,8 @@ OPTIONS = {
         'CFBundleName': 'KnockThatDoor',
         'CFBundleDisplayName': 'KnockThatDoor',
         'CFBundleIdentifier': 'com.rempairamore.knockthatdoor',
-        'CFBundleVersion': '1.0.0',
-        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleVersion': '1.1.0',
+        'CFBundleShortVersionString': '1.1.0',
         'NSHumanReadableCopyright': 'Copyleft rempairamore'
     },
     'packages': ['rumps'],
