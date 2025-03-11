@@ -1,12 +1,16 @@
 # KnockThatDoor
 
-KnockThatDoor is a port knocking utility for macOS that runs in your menu bar. A menu bar app lives in the top-right corner of your screen alongside other system icons, providing quick access without cluttering your dock or taking up space in your application switcher.
+KnockThatDoor is a simple port knocking utility I built for macOS that sits in your menu bar. If you're not familiar with menu bar apps, they're those small icons that live in the top-right corner of your screen next to your clock and other system stuff. Super convenient for quick access without cluttering your dock.
 
-![Application Screenshot](img/screenshot_placeholder.png)
+![Screenshot of the app in action](img/screenshot_placeholder.png)
+
+## What the heck is Port Knocking?
+
+Port knocking is a neat security trick where ports on your server stay closed until someone sends the right sequence of connection attempts. Think of it like a secret knock on a speakeasy door - if you don't know the pattern, you're not getting in. This keeps your services hidden from random port scanners and only opens up when you send the correct "knock" sequence.
 
 ## Configuration
 
-KnockThatDoor is configured through a `conf.json` file that defines the services and their knocking sequences.
+Everything is controlled through a `conf.json` file. It's pretty straightforward:
 
 ### The conf.json Structure
 
@@ -31,70 +35,71 @@ KnockThatDoor is configured through a `conf.json` file that defines the services
 }
 ```
 
-Parameters explained:
-- `service_name`: The name that will appear in the menu bar dropdown
-- `ports_to_knock`: The sequence of ports to knock on, with protocol specified (udp/tcp)
-- `target_address`: The IP address or hostname where to send the knocks
-- `testing_address_and_port`: The address and port to test after knocking to verify success
-- `delay_in_milliseconds`: The delay between each knock in the sequence
+Here's what each setting does:
+- `service_name`: What you'll see in the menu dropdown
+- `ports_to_knock`: The sequence of ports to hit, with protocol (udp/tcp)
+- `target_address`: Where to send the knocks (IP or hostname)
+- `testing_address_and_port`: What to check after knocking to see if it worked
+- `delay_in_milliseconds`: How long to wait between knocks (in ms)
 
-### Editing Configuration Directly from the App
+### Editing Your Configuration
 
-The app allows you to edit the configuration file without having to locate it manually:
+No need to hunt down config files manually:
 
-1. Click on the KnockThatDoor icon in your menu bar
-2. Select "**Edit Config**" from the dropdown menu
-3. Your default text editor will open with the conf.json file
-4. Make your changes and save the file
-5. Go back to the app and select "Refresh Config" to apply your changes
+1. Click the KnockThatDoor icon in your menu bar
+2. Select "**Edit Config**" from the menu
+3. Make your changes in the text editor that pops up
+4. Save it
+5. Go back to the app and hit "Refresh Config" to apply changes
 
-This makes it easy to add new services or modify existing ones without leaving the app interface.
+Dead simple. This way you can quickly add or modify services whenever you need to.
 
-## How to Use
+## How To Use It
 
-After configuring your services:
+Once you've set everything up:
 
-1. Click the KnockThatDoor icon in the menu bar
-2. Select a service from the dropdown menu
-3. The app will send the knock sequence and test if the service is accessible
-4. A color indicator will show the result:
-   - 🟢 Green: The service is now accessible
-   - 🔴 Red: Failed to access the service
-
-## What is Port Knocking?
-
-Port knocking is a security method where a server's ports remain closed and invisible until a specific sequence of connection attempts is detected. This adds an extra layer of security by hiding services from port scanners and only opening ports after receiving the correct "secret knock."
+1. Click the KnockThatDoor icon
+2. Pick a service from the dropdown
+3. Let it do its thing - it'll send the knocks and test the connection
+4. Check the colored icon to see what happened:
+   - 🟢 Green means you're in! Service is accessible
+   - 🔴 Red means something went wrong
 
 ## Download and Installation
 
-You can download the pre-compiled application (.app) directly from [here](link_to_latest_release) and move it to your Applications folder.
+### Option 1: Just Grab the App
+Download the pre-built .app from [the releases page](link_to_latest_release) and drag it to your Applications folder. Done.
 
-If you prefer to build from source:
+### Option 2: Build It Yourself
+
+If you prefer to build from source (or don't trust random .app files from the internet, which is fair):
 
 ```bash
-# Install dependencies
-pip install rumps py2app
-
-# Clone the repository
+# Clone the repo
 git clone https://github.com/your_username/KnockThatDoor.git
 cd KnockThatDoor
 
-# Build the application
+# Install dependencies (two options)
+pip install -r requirements.txt
+# OR install them manually
+pip install rumps py2app
+
+# Build it
 python3 setup.py py2app
 ```
 
-## Logs
+The compiled app will be in the `dist` folder - just drag it to Applications.
 
-Logs are stored in the `./log` folder within the application directory. Check these files if you're experiencing issues with the application.
+## Troubleshooting
+
+
+You can check che logs by clicking "View Logs" inside the app.
 
 ## License
 
-KnockThatDoor is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+KnockThatDoor is free software under the GNU GPL v3. Basically:
 
-KnockThatDoor is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
+- You can use, modify, and share it
+- If you distribute modified versions, they need to be under the same license
+- No warranties - it might work great or blow up spectacularly
+
