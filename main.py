@@ -283,25 +283,81 @@ class PortKnockerApp(rumps.App):
         # Set flag to true
         self.services_verified = True
     
-    def test_connection(self, hostname, port, timeout=0.2):
+    # Metodo per verificare se una stringa è già un indirizzo IP
+    def is_ip_address(self, address):
+        """Check if a string is an IP address
+        
+        Args:
+            address: String to check
+            
+        Returns:
+            bool: True if address is an IP, False otherwise
+        """
+        try:
+            socket.inet_pton(socket.AF_INET, address)
+            return True
+        except socket.error:
+            try:
+                socket.inet_pton(socket.AF_INET6, address)
+                return True
+            except socket.error:
+                return False
+    
+    # Metodo per risolvere gli indirizzi IP all'inizio e riutilizzarli
+    def resolve_address(self, host):
+        """Resolve a hostname to an IP address
+        
+        Args:
+            host: Hostname or IP to resolve
+            
+        Returns:
+            tuple: (ip_address, address_family) or (None, None) if resolution fails
+        """
+        try:
+            # If already an IP address, don't do a lookup
+            if self.is_ip_address(host):
+                address_family = socket.AF_INET6 if ':' in host else socket.AF_INET
+                return host, address_family
+                
+            # Otherwise resolve the hostname
+            address_family, _, _, _, ip = socket.getaddrinfo(
+                host=host,
+                port=None,
+                flags=socket.AI_ADDRCONFIG
+            )[0]
+            return ip[0], address_family
+        except Exception as e:
+            logging.error(f"Error resolving address {host}: {e}")
+            print(f"Error resolving address {host}: {e}")
+            return None, None
+    
+    def test_connection(self, hostname, port, timeout=0.2, resolved_ip=None):
         """Test connection to a specified host and port using Python sockets
         
         Args:
             hostname: The hostname or IP to connect to
             port: The port number to connect to
             timeout: Timeout in seconds
+            resolved_ip: Optional pre-resolved IP address to avoid DNS lookups
             
         Returns:
             bool: True if connection successful, False otherwise
         """
         try:
-            # Resolve the hostname to get the address family and IP
-            address_family, _, _, _, ip = socket.getaddrinfo(
-                host=hostname,
-                port=None,
-                flags=socket.AI_ADDRCONFIG
-            )[0]
-            ip_address = ip[0]
+            # Use pre-resolved IP if provided
+            if resolved_ip:
+                ip_address = resolved_ip
+                # Determine address family based on the format of the IP
+                address_family = socket.AF_INET6 if ':' in ip_address else socket.AF_INET
+            else:
+                # Resolve the hostname to get the address family and IP
+                # This is slower but necessary if we don't have the IP yet
+                address_family, _, _, _, ip = socket.getaddrinfo(
+                    host=hostname,
+                    port=None,
+                    flags=socket.AI_ADDRCONFIG
+                )[0]
+                ip_address = ip[0]
             
             # Create a TCP socket
             s = socket.socket(address_family, socket.SOCK_STREAM)
@@ -316,6 +372,106 @@ class PortKnockerApp(rumps.App):
         except Exception as e:
             logging.error(f"Error testing connection to {hostname}:{port} - {e}")
             print(f"Error testing connection to {hostname}:{port} - {e}")
+            return False
+    
+    def perform_port_knock(self, host, ports, timeout=0.2, delay=0.2, default_udp=False, verbose=True, resolved_ip=None):
+        """Perform port knocking on the specified host and ports
+        
+        Args:
+            host: Hostname or IP to knock on
+            ports: List of ports to knock on, format: ["8006:tcp", "8080:udp", ...]
+            timeout: Timeout in seconds for each knock
+            delay: Delay in seconds between knocks
+            default_udp: Whether to use UDP by default (if protocol not specified)
+            verbose: Whether to print verbose information
+            resolved_ip: Optional pre-resolved IP address to avoid DNS lookups
+            
+        Returns:
+            bool: True if all knocks were sent, False if an error occurred
+        """
+        try:
+            # Use pre-resolved IP if provided
+            if resolved_ip:
+                ip_address = resolved_ip
+                # Determine address family based on the format of the IP
+                address_family = socket.AF_INET6 if ':' in ip_address else socket.AF_INET
+            else:
+                # Resolve the hostname to get the address family and IP
+                address_family, _, _, _, ip = socket.getaddrinfo(
+                    host=host,
+                    port=None,
+                    flags=socket.AI_ADDRCONFIG
+                )[0]
+                ip_address = ip[0]
+            
+            if verbose:
+                logging.info(f"Knocking on {host} ({ip_address})")
+                print(f"Knocking on {host} ({ip_address})")
+            
+            # Process each port - optimized for speed
+            for i, port_spec in enumerate(ports):
+                # Parse port and protocol
+                use_udp = default_udp
+                
+                # Check first for the colon format (port:protocol)
+                if ":" in port_spec:
+                    parts = port_spec.split(":")
+                    port_num = parts[0]
+                    protocol = parts[1].lower() if len(parts) > 1 else ""
+                    
+                    if protocol == "udp":
+                        use_udp = True
+                    elif protocol == "tcp":
+                        use_udp = False
+                # Then check for the old format (portudp, porttcp)
+                elif "udp" in port_spec.lower():
+                    port_num = port_spec.lower().replace("udp", "")
+                    use_udp = True
+                elif "tcp" in port_spec.lower():
+                    port_num = port_spec.lower().replace("tcp", "")
+                    use_udp = False
+                else:
+                    port_num = port_spec
+                
+                try:
+                    port_num = int(port_num)
+                except ValueError:
+                    logging.error(f"Invalid port number: {port_num}")
+                    print(f"Invalid port number: {port_num}")
+                    continue
+                
+                if verbose:
+                    logging.info(f"Hitting {ip_address}:{port_num} via {'UDP' if use_udp else 'TCP'}")
+                    print(f"Hitting {ip_address}:{port_num} via {'UDP' if use_udp else 'TCP'}")
+                
+                # Create the appropriate socket - optimized for speed
+                s = socket.socket(address_family, socket.SOCK_DGRAM if use_udp else socket.SOCK_STREAM)
+                s.setblocking(False)
+                
+                try:
+                    socket_address = (ip_address, port_num)
+                    if use_udp:
+                        # For UDP, just send an empty datagram - faster
+                        s.sendto(b'', socket_address)
+                    else:
+                        # For TCP, just initiate a connection but don't wait for it to complete
+                        # No need for select.select() - we don't care about the response for port knocking
+                        s.connect_ex(socket_address)
+                except Exception as e:
+                    if verbose:
+                        logging.error(f"  Error during knock: {e}")
+                        print(f"  Error during knock: {e}")
+                finally:
+                    s.close()
+                
+                # Add delay between knocks (except for the last one)
+                if delay > 0 and i < len(ports) - 1:
+                    time.sleep(delay)
+            
+            return True
+        except Exception as e:
+            logging.error(f"Error performing port knock: {e}")
+            print(f"Error performing port knock: {e}")
             return False
     
     def check_service(self, service, from_check_connections=False):
@@ -340,12 +496,20 @@ class PortKnockerApp(rumps.App):
             
             address, port = parts
             
-            # Test connection with Python sockets instead of netcat
+            # Resolve IP address once
+            testing_ip, _ = self.resolve_address(address)
+            
+            # Test connection with Python sockets using resolved IP
             logging.info(f"Testing {service_name}: socket connection to {address}:{port}")
             print(f"Testing {service_name}: socket connection to {address}:{port}")
             
-            # Use a 1-second timeout for the connection test
-            connection_successful = self.test_connection(address, port, timeout=0.5)
+            # Use a 0.5-second timeout for the connection test (faster)
+            connection_successful = self.test_connection(
+                address, 
+                port, 
+                timeout=0.5,
+                resolved_ip=testing_ip  # Pass the resolved IP
+            )
             
             # Update icon based on result
             if connection_successful:
@@ -369,101 +533,6 @@ class PortKnockerApp(rumps.App):
             menu_item.icon = self.error_icon_path
             print(f"Set error icon for {service_name} error")
     
-    def perform_port_knock(self, host, ports, timeout=0.2, delay=0.2, default_udp=False, verbose=True):
-        """Perform port knocking on the specified host and ports
-        
-        Args:
-            host: Hostname or IP to knock on
-            ports: List of ports to knock on, format: ["8006:tcp", "8080:udp", ...]
-            timeout: Timeout in seconds for each knock
-            delay: Delay in seconds between knocks
-            default_udp: Whether to use UDP by default (if protocol not specified)
-            verbose: Whether to print verbose information
-            
-        Returns:
-            bool: True if all knocks were sent, False if an error occurred
-        """
-        try:
-            # Resolve the hostname to get the address family and IP
-            address_family, _, _, _, ip = socket.getaddrinfo(
-                host=host,
-                port=None,
-                flags=socket.AI_ADDRCONFIG
-            )[0]
-            ip_address = ip[0]
-            
-            if verbose:
-                logging.info(f"Knocking on {host} ({ip_address})")
-                print(f"Knocking on {host} ({ip_address})")
-            
-            # Process each port
-            for i, port_spec in enumerate(ports):
-                # Parse port and protocol using the new format "port:protocol"
-                use_udp = default_udp  # Default protocol (typically TCP)
-                
-                # Check if port specification includes the new format (port:protocol)
-                if ":" in port_spec:
-                    parts = port_spec.split(":")
-                    port_num = parts[0]
-                    protocol = parts[1].lower() if len(parts) > 1 else ""
-                    
-                    if protocol == "udp":
-                        use_udp = True
-                    elif protocol == "tcp":
-                        use_udp = False
-                else:
-                    # Backward compatibility with old format or default if no protocol specified
-                    if "tcp" in port_spec.lower():
-                        port_num = port_spec.lower().replace("tcp", "")
-                        use_udp = False
-                    elif "udp" in port_spec.lower():
-                        port_num = port_spec.lower().replace("udp", "")
-                        use_udp = True
-                    else:
-                        port_num = port_spec
-                
-                try:
-                    port_num = int(port_num)
-                except ValueError:
-                    logging.error(f"Invalid port number: {port_num}")
-                    print(f"Invalid port number: {port_num}")
-                    continue
-                
-                if verbose:
-                    logging.info(f"Hitting {ip_address}:{port_num} via {'UDP' if use_udp else 'TCP'}")
-                    print(f"Hitting {ip_address}:{port_num} via {'UDP' if use_udp else 'TCP'}")
-                
-                # Create the appropriate socket
-                s = socket.socket(address_family, socket.SOCK_DGRAM if use_udp else socket.SOCK_STREAM)
-                s.setblocking(False)
-                
-                try:
-                    socket_address = (ip_address, port_num)
-                    if use_udp:
-                        # For UDP, just send an empty datagram
-                        s.sendto(b'', socket_address)
-                    else:
-                        # For TCP, initiate a connection but don't wait for it to complete
-                        s.connect_ex(socket_address)
-                        # Wait for the socket to be readable or writable with timeout
-                        select.select([s], [s], [s], timeout)
-                except Exception as e:
-                    if verbose:
-                        logging.error(f"  Error during knock: {e}")
-                        print(f"  Error during knock: {e}")
-                finally:
-                    s.close()
-                
-                # Add delay between knocks (except for the last one)
-                if delay > 0 and i < len(ports) - 1:
-                    time.sleep(delay)
-            
-            return True
-        except Exception as e:
-            logging.error(f"Error performing port knock: {e}")
-            print(f"Error performing port knock: {e}")
-            return False
-    
     def on_service_click(self, sender):
         """Handle click on a service"""
         service_name = sender.title
@@ -485,7 +554,7 @@ class PortKnockerApp(rumps.App):
         # Start process in a separate thread to avoid blocking UI
         # Pass False to indicate this is not from Check Connections
         threading.Thread(target=self.check_service_after_knock, args=(service, sender), daemon=True).start()
-        
+    
     def check_service_after_knock(self, service, menu_item):
         """First perform port knocking, then check the service connection"""
         service_name = service.get("service_name")
@@ -500,14 +569,18 @@ class PortKnockerApp(rumps.App):
         logging.info(f"\n\nProcessing service: {service_name} with delay: {delay_ms}ms")
         print(f"\n\nProcessing service: {service_name} with delay: {delay_ms}ms")
         
-        # Perform port knocking using the socket implementation
+        # Resolve IP address once, then reuse it
+        target_ip, _ = self.resolve_address(target_address)
+        
+        # Perform port knocking using the socket implementation with resolved IP
         knock_successful = self.perform_port_knock(
             host=target_address,
             ports=ports_to_knock,
-            timeout=0.2,
-            delay=delay_sec,  # Use the delay from the service configuration
+            timeout=0.1,  # Only used for socket operations, not between knocks
+            delay=delay_sec,  # This is the ONLY delay between knocks, from configuration
             default_udp=False,
-            verbose=True
+            verbose=True,
+            resolved_ip=target_ip  # Pass the resolved IP
         )
         
         if not knock_successful:
@@ -526,12 +599,23 @@ class PortKnockerApp(rumps.App):
                 
                 address, port = parts
                 
-                # Test connection using Python sockets
+                # Resolve testing IP address
+                testing_ip, _ = self.resolve_address(address)
+                
+                # Test connection using Python sockets with resolved IP
                 logging.info(f"Testing connection to {address}:{port}")
                 print(f"Testing connection to {address}:{port}")
                 
-                # Use a 2-second timeout for the connection test
-                connection_successful = self.test_connection(address, port, timeout=2.0)
+                # Try connection with progressively increasing timeouts
+                for timeout in [0.5, 1.0, 2.0]:
+                    connection_successful = self.test_connection(
+                        address, 
+                        port, 
+                        timeout=timeout,
+                        resolved_ip=testing_ip  # Pass the resolved IP
+                    )
+                    if connection_successful:
+                        break
                 
                 # Update icon based on result and show notification
                 if connection_successful:

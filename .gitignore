@@ -37,7 +37,6 @@ wheels/
 # KnockThatDoor specific
 log/
 *.log
-*.icns
 *.app
 
 # IDE folders
