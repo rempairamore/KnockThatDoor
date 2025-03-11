@@ -1,0 +1,18 @@
+{
+    "services": [
+      {
+        "service_name": "SERVER-1_ssh",
+        "ports_to_knock": ["8080:udp", "54200:tcp", "54100:udp", "80:udp"],
+        "target_address": "myserver.example.com",
+        "testing_address_and_port": "myserver.example.com:443",
+        "delay_in_milliseconds": 300
+      },
+      {
+        "service_name": "plex_test",
+        "ports_to_knock": ["44320:udp", "6231:udp", "8080:tcp", "443:tcp"],
+        "target_address": "190.190.88.88",
+        "testing_address_and_port": "190.190.88.88:32400",
+        "delay_in_milliseconds": 300
+      }
+    ]
+  }

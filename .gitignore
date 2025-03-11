@@ -1,0 +1,63 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Python / py2app build folders
+dist/
+build/
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# KnockThatDoor specific
+log/
+*.log
+*.icns
+*.app
+
+# IDE folders
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
