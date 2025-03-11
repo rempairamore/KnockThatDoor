@@ -26,84 +26,53 @@ import traceback
 import logging
 from datetime import datetime
 
-# Helper functions need to be defined BEFORE they are used
-def get_resource_path(relative_path):
-    """Get the correct path to resources, whether running as app or script"""
-    import os
-    import sys
-    
-    # Debug info: What are we trying to find?
-    print(f"Looking for resource: {relative_path}")
-    
-    if getattr(sys, 'frozen', False):
+# Helper function to determine if running as a bundled app
+def is_bundled_app():
+    return getattr(sys, 'frozen', False)
+
+# Get the appropriate base directory based on runtime environment
+def get_base_dir():
+    if is_bundled_app():
         # Running as bundled app
-        if hasattr(sys, '_MEIPASS'):
-            # PyInstaller
-            base_path = sys._MEIPASS
+        executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+        if executable_dir.endswith('MacOS'):
+            # We're in .app/Contents/MacOS
+            return os.path.dirname(executable_dir)  # Return Contents dir
         else:
-            # py2app
-            # First, get the directory of the executable
-            executable_dir = os.path.dirname(os.path.abspath(sys.executable))
-            
-            # For a .app bundle, we need to navigate to Resources
-            if executable_dir.endswith('MacOS'):
-                # We're in .app/Contents/MacOS, need to go up and then to Resources
-                base_path = os.path.join(os.path.dirname(executable_dir), 'Resources')
-            else:
-                # Fallback
-                base_path = executable_dir
-                
-            print(f"App bundle detected. Base path: {base_path}")
+            return executable_dir
     else:
         # Running as script
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        print(f"Running as script. Base path: {base_path}")
+        return os.path.dirname(os.path.realpath(__file__))
+
+# Get resource path for bundled app or development
+def get_resource_path(relative_path):
+    base_dir = get_base_dir()
     
-    # Try multiple possible locations
-    path = os.path.join(base_path, relative_path)
+    if is_bundled_app():
+        # For bundled app, check in Resources folder
+        resources_dir = os.path.join(base_dir, 'Resources')
+        path = os.path.join(resources_dir, relative_path)
+    else:
+        # For development, use the direct path
+        path = os.path.join(base_dir, relative_path)
     
-    # For debugging
-    print(f"Resolved path: {path}")
+    # Debug output
+    print(f"Resolving resource path for: {relative_path}")
+    print(f"Path: {path}")
     print(f"Path exists: {os.path.exists(path)}")
-    
-    # If not found, try alternative locations for bundled app
-    if not os.path.exists(path) and getattr(sys, 'frozen', False):
-        # Try 1: Maybe the resources are at the bundle root
-        alt_path = os.path.join(base_path, os.path.basename(relative_path))
-        if os.path.exists(alt_path):
-            print(f"Found at alternative path: {alt_path}")
-            return alt_path
-            
-        # Try 2: Maybe the Images are in the MacOS directory
-        if base_path.endswith('Resources'):
-            macos_dir = os.path.join(os.path.dirname(base_path), 'MacOS')
-            alt_path = os.path.join(macos_dir, relative_path)
-            if os.path.exists(alt_path):
-                print(f"Found in MacOS directory: {alt_path}")
-                return alt_path
-                
-        # Print directory contents for debugging
-        print(f"Directory contents of {base_path}:")
-        for root, dirs, files in os.walk(base_path):
-            for name in files:
-                print(f"  File: {os.path.join(root, name)}")
-            for name in dirs:
-                print(f"  Dir: {os.path.join(root, name)}")
     
     return path
 
-
-def get_app_support_directory():
-    """Returns the application support directory for this app"""
-    app_name = "KnockThatDoor"
-    app_support = os.path.expanduser("~/Library/Application Support/" + app_name)
-    os.makedirs(app_support, exist_ok=True)
-    return app_support
-
-
 # Setup logging
-app_support_dir = get_app_support_directory()
-log_dir = os.path.join(app_support_dir, "logs")
+base_dir = get_base_dir()
+if is_bundled_app():
+    # For bundled app, use the MacOS folder for logs
+    executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+    log_dir = os.path.join(executable_dir, "log")
+else:
+    # For development, use local log folder
+    log_dir = os.path.join(base_dir, "log")
+
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"knockthatdoor_{datetime.now().strftime('%Y%m%d')}.log")
 logging.basicConfig(
@@ -114,61 +83,36 @@ logging.basicConfig(
 
 class PortKnockerApp(rumps.App):
     def __init__(self):
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        # Try to use the resource path function
-        icon_path = get_resource_path('img/icona.png')
+        self.script_dir = get_base_dir()
         
-        logging.info(f"Starting Port Knocker from {script_dir}")
-        print(f"Starting Port Knocker from {script_dir}")
+        # Get paths for icons
+        if is_bundled_app():
+            # For bundled app
+            icon_path = get_resource_path('img/icona.png')
+            self.error_icon_path = get_resource_path('img/error.png')
+            self.connected_icon_path = get_resource_path('img/connected.png')
+            self.loading_icon_path = get_resource_path('img/loading1.png')
+            self.closed_icon_path = get_resource_path('img/closed.png')
+        else:
+            # For development
+            icon_path = os.path.join(self.script_dir, 'img', 'icona.png')
+            self.error_icon_path = os.path.join(self.script_dir, 'img', 'error.png')
+            self.connected_icon_path = os.path.join(self.script_dir, 'img', 'connected.png')
+            self.loading_icon_path = os.path.join(self.script_dir, 'img', 'loading1.png')
+            self.closed_icon_path = os.path.join(self.script_dir, 'img', 'closed.png')
         
-        # Paths to status icons using the resource path function
-        self.script_dir = script_dir
-        self.error_icon_path = get_resource_path('img/error.png')
-        self.connected_icon_path = get_resource_path('img/connected.png')
-        self.loading_icon_path = get_resource_path('img/loading1.png')
-        self.closed_icon_path = get_resource_path('img/closed.png')
-        
-        # Fallback: Check if icons exist, if not try to find them
-        if not os.path.exists(self.error_icon_path):
-            print("Icons not found at primary paths, trying fallback paths...")
-            import sys
-            
-            if getattr(sys, 'frozen', False):
-                # We're running from a bundle
-                if sys.platform == 'darwin':  # macOS
-                    # Get the bundle Resources directory
-                    bundle_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
-                    resources_dir = os.path.join(bundle_dir, 'Resources')
-                    
-                    # Try bundle resources directory
-                    icon_path = os.path.join(resources_dir, 'img', 'icona.png')
-                    self.error_icon_path = os.path.join(resources_dir, 'img', 'error.png')
-                    self.connected_icon_path = os.path.join(resources_dir, 'img', 'connected.png')
-                    self.loading_icon_path = os.path.join(resources_dir, 'img', 'loading1.png')
-                    self.closed_icon_path = os.path.join(resources_dir, 'img', 'closed.png')
-                    
-                    print(f"Using bundle resources paths, icon_path: {icon_path}")
-                    
-                    # If still not found, try other locations
-                    if not os.path.exists(self.error_icon_path):
-                        # Try looking directly in Resources
-                        icon_path = os.path.join(resources_dir, 'icona.png')
-                        self.error_icon_path = os.path.join(resources_dir, 'error.png')
-                        self.connected_icon_path = os.path.join(resources_dir, 'connected.png')
-                        self.loading_icon_path = os.path.join(resources_dir, 'loading1.png')
-                        self.closed_icon_path = os.path.join(resources_dir, 'closed.png')
-                        
-                        print(f"Using direct resources paths, icon_path: {icon_path}")
+        logging.info(f"Starting KnockThatDoor from {self.script_dir}")
+        print(f"Starting KnockThatDoor from {self.script_dir}")
         
         # Initialize app with menu bar icon
         if os.path.exists(icon_path):
             logging.info(f"Using app icon: {icon_path}")
             print(f"Using app icon: {icon_path}")
-            super(PortKnockerApp, self).__init__("Port Knocker", icon=icon_path, quit_button=None)
+            super(PortKnockerApp, self).__init__("KnockThatDoor", icon=icon_path, quit_button=None)
         else:
             logging.warning(f"WARNING: App icon not found: {icon_path}")
             print(f"WARNING: App icon not found: {icon_path}")
-            super(PortKnockerApp, self).__init__("Port Knocker", quit_button=None)
+            super(PortKnockerApp, self).__init__("KnockThatDoor", quit_button=None)
         
         self.config = self.load_config()
         self.setup_menu()
@@ -181,29 +125,20 @@ class PortKnockerApp(rumps.App):
     
     def load_config(self):
         try:
-            # First try in the current directory (for development)
-            config_path = os.path.join(self.script_dir, 'conf.json')
-            
-            if not os.path.exists(config_path):
-                # Next try in the resource path (for app bundle)
+            if is_bundled_app():
+                # For bundled app
                 config_path = get_resource_path('conf.json')
-                
-            if not os.path.exists(config_path):
-                # Finally try in the app support directory (for user config)
-                app_support_dir = get_app_support_directory()
-                config_path = os.path.join(app_support_dir, 'conf.json')
-                
-                # If not there yet, copy from resources to app support
-                if not os.path.exists(config_path):
-                    source_config = get_resource_path('conf.json')
-                    if os.path.exists(source_config):
-                        import shutil
-                        shutil.copy2(source_config, config_path)
-                        logging.info(f"Created initial config at {config_path}")
-                        print(f"Created initial config at {config_path}")
+            else:
+                # For development
+                config_path = os.path.join(self.script_dir, 'conf.json')
             
             logging.info(f"Loading config from: {config_path}")
             print(f"Loading config from: {config_path}")
+            
+            if not os.path.exists(config_path):
+                logging.warning(f"Config file not found: {config_path}")
+                print(f"Config file not found: {config_path}")
+                return {"services": []}
             
             with open(config_path, 'r') as f:
                 config = json.load(f)
@@ -232,8 +167,8 @@ class PortKnockerApp(rumps.App):
         #self.menu.add(check_button)
         self.menu.add(rumps.MenuItem("Refresh Config", callback=self.on_refresh_click))
         self.menu.add(rumps.MenuItem("Edit Config", callback=self.on_edit_config))
-        self.menu.add(rumps.MenuItem("View Logs", callback=self.on_view_logs))
         self.menu.add(None)
+        self.menu.add(rumps.MenuItem("View Logs", callback=self.on_view_logs))
         self.menu.add(rumps.MenuItem("Quit", callback=rumps.quit_application))
     
     def check_icons_exist(self):
@@ -256,19 +191,13 @@ class PortKnockerApp(rumps.App):
     def on_edit_config(self, _):
         """Open the configuration file in TextEdit"""
         try:
-            app_support_dir = get_app_support_directory()
-            config_path = os.path.join(app_support_dir, 'conf.json')
-            
-            # If config doesn't exist in app support yet, copy it there
-            if not os.path.exists(config_path):
-                source_config = get_resource_path('conf.json')
-                if os.path.exists(source_config):
-                    import shutil
-                    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-                    shutil.copy2(source_config, config_path)
-                    logging.info(f"Created config at {config_path} for editing")
-                    print(f"Created config at {config_path} for editing")
-            
+            if is_bundled_app():
+                # For bundled app
+                config_path = get_resource_path('conf.json')
+            else:
+                # For development
+                config_path = os.path.join(self.script_dir, 'conf.json')
+                
             logging.info(f"Opening config file: {config_path}")
             print(f"Opening config file: {config_path}")
             
@@ -286,7 +215,14 @@ class PortKnockerApp(rumps.App):
     def on_view_logs(self, _):
         """Open the log folder in Finder"""
         try:
-            log_dir = os.path.join(get_app_support_directory(), "logs")
+            if is_bundled_app():
+                # For bundled app, use the MacOS folder for logs
+                executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+                log_dir = os.path.join(executable_dir, "log")
+            else:
+                # For development, use local log folder
+                log_dir = os.path.join(self.script_dir, "log")
+                
             logging.info(f"Opening log directory: {log_dir}")
             print(f"Opening log directory: {log_dir}")
             
@@ -347,7 +283,7 @@ class PortKnockerApp(rumps.App):
         # Set flag to true
         self.services_verified = True
     
-    def test_connection(self, hostname, port, timeout=1.0):
+    def test_connection(self, hostname, port, timeout=0.2):
         """Test connection to a specified host and port using Python sockets
         
         Args:
@@ -409,7 +345,7 @@ class PortKnockerApp(rumps.App):
             print(f"Testing {service_name}: socket connection to {address}:{port}")
             
             # Use a 1-second timeout for the connection test
-            connection_successful = self.test_connection(address, port, timeout=1.0)
+            connection_successful = self.test_connection(address, port, timeout=0.5)
             
             # Update icon based on result
             if connection_successful:
