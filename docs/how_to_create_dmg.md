@@ -14,7 +14,7 @@ This document describes the process of creating a macOS DMG installer for the Kn
 
 1. Install the create-dmg tool:
    ```
-   brew install create-dmgbrew install create-dmg
+   brew install create-dmg
    ```
 
 2. Run the create-dmg command:
