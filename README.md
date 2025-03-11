@@ -68,7 +68,7 @@ Once you've set everything up:
 ## Download and Installation
 
 ### Option 1: Just Grab the App
-Download the pre-built .app from [the releases page](link_to_latest_release) and drag it to your Applications folder. Done.
+Download the pre-built .app from the releases page and drag it to your Applications folder. Done.
 
 ### Option 2: Build It Yourself
 
