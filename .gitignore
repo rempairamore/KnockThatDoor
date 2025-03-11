@@ -11,7 +11,7 @@ Icon
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
-
+*.dmg
 # Python / py2app build folders
 dist/
 build/
