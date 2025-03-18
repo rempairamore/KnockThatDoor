@@ -1,0 +1,7 @@
+{
+    "open_dashboard_at_startup": true,
+    "minimize_to_tray": true,
+    "check_interval_minutes": 5,
+    "auto_knock_enabled": false,
+    "auto_knock_interval_minutes": 30
+}

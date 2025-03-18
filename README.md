@@ -1,105 +1,97 @@
 # KnockThatDoor
 
-KnockThatDoor is a simple port knocking utility I built for macOS that sits in your menu bar. If you're not familiar with menu bar apps, they're those small icons that live in the top-right corner of your screen next to your clock and other system stuff. Super convenient for quick access without cluttering your dock.
+A port knocking utility for macOS and Windows that runs in the system tray/menu bar. This tool enables secure access to servers using the port knocking technique.
 
-![Screenshot of the app in action](img/screenshot_placeholder.png)
+![Screenshot of KnockThatDoor](img/screenshot_placeholder.png)
 
-## What the heck is Port Knocking?
+## Port Knocking Overview
 
-Port knocking is a neat security trick where ports on your server stay closed until someone sends the right sequence of connection attempts. Think of it like a secret knock on a speakeasy door - if you don't know the pattern, you're not getting in. This keeps your services hidden from random port scanners and only opens up when you send the correct "knock" sequence.
+Port knocking is a security method where a server's ports remain closed until it detects a specific sequence of connection attempts on predetermined ports. This technique hides services from port scanners while allowing authorized access through a specific connection pattern.
+
+## Platform Support
+
+- **macOS**: Runs in the menu bar with dropdown menu access
+- **Windows**: Runs in the system tray with a GUI window for service management
+
+Both platforms provide status indicators for services:
+- Green: Service accessible
+- Red: Service inaccessible
+- Yellow: Status check in progress
 
 ## Configuration
 
-Everything is controlled through a `conf.json` file. It's pretty straightforward:
-
-### The conf.json Structure
+The application uses a `conf.json` file with the following structure:
 
 ```json
 {
-  "services": [
-    {
-      "service_name": "my_ssh_server",
-      "ports_to_knock": ["8000udp", "9000tcp", "7000udp"],
-      "target_address": "192.168.1.10",
-      "testing_address_and_port": "192.168.1.10:22",
-      "delay_in_milliseconds": 300
-    },
-    {
-      "service_name": "home_plex_server",
-      "ports_to_knock": ["51320udp", "3231udp", "8080tcp", "7040udp"],
-      "target_address": "10.0.0.5",
-      "testing_address_and_port": "10.0.0.5:32400",
-      "delay_in_milliseconds": 300
-    }
-  ]
-}
+    "services": [
+      {
+        "service_name": "SERVER-1_ssh",
+        "ports_to_knock": ["8080:udp", "54200:tcp", "54100:udp", "80:udp"],
+        "target_address": "myserver.example.com",
+        "testing_address_and_port": "myserver.example.com:443",
+        "delay_in_milliseconds": 300
+      },
+      {
+        "service_name": "plex_test",
+        "ports_to_knock": ["44320:udp", "6231:udp", "8080:tcp", "443:tcp"],
+        "target_address": "190.190.88.88",
+        "testing_address_and_port": "190.190.88.88:32400",
+        "delay_in_milliseconds": 300
+      }
+    ]
+  }
 ```
 
-Here's what each setting does:
-- `service_name`: What you'll see in the menu dropdown
-- `ports_to_knock`: The sequence of ports to hit, with protocol (udp/tcp)
-- `target_address`: Where to send the knocks (IP or hostname)
-- `testing_address_and_port`: What to check after knocking to see if it worked
-- `delay_in_milliseconds`: How long to wait between knocks (in ms)
+### Configuration Parameters
 
-### Editing Your Configuration
+- `service_name`: Identifier displayed in the application UI
+- `ports_to_knock`: Array of ports and protocols for the knock sequence
+  - Format options: `"8080:tcp"`, `"8080tcp"`, or `"8080"` (defaults to TCP)
+- `target_address`: Host to send the knock sequence to (IP or hostname)
+- `testing_address_and_port`: Host:port to test after knock sequence
+- `delay_in_milliseconds`: Delay between each knock in milliseconds
 
-No need to hunt down config files manually:
+Edit the configuration through the application's "Edit Config" option and reload using "Reload Config" to apply changes.
 
-1. Click the KnockThatDoor icon in your menu bar
-2. Select "**Edit Config**" from the menu
-3. Make your changes in the text editor that pops up
-4. Save it
-5. Go back to the app and hit "Refresh Config" to apply changes
+## Usage
 
-Dead simple. This way you can quickly add or modify services whenever you need to.
+1. Click the application icon in system tray/menu bar
+2. Select a service or click "Knock" on the service (Windows)
+3. The application will execute the knock sequence
+4. Status indicators show the result of the operation
 
-## How To Use It
+## Installation
 
-Once you've set everything up:
+### Pre-built Binaries
+1. Download from [releases page](https://github.com/rempairamore/KnockThatDoor/releases)
+2. macOS: Move .app file to Applications folder
+3. Windows: Extract and run the executable
 
-1. Click the KnockThatDoor icon
-2. Pick a service from the dropdown
-3. Let it do its thing - it'll send the knocks and test the connection
-4. Check the colored icon to see what happened:
-   - 🟢 Green means you're in! Service is accessible
-   - 🔴 Red means something went wrong
+### Build from Source
 
-## Download and Installation
-
-### Option 1: Just Grab the App
-Download the pre-built .app from the [releases page](https://github.com/rempairamore/KnockThatDoor/releases) and drag it to your Applications folder. Done.
-
-### Option 2: Build It Yourself
-
-If you prefer to build from source (or don't trust random .app files from the internet, which is fair):
-
+#### macOS Build
 ```bash
-# Clone the repo
 git clone https://github.com/your_username/KnockThatDoor.git
 cd KnockThatDoor
-
-# Install dependencies (two options)
-pip install -r requirements.txt
-# OR install them manually
 pip install rumps py2app
-
-# Build it
 python3 setup.py py2app
+# Output in dist/ directory
 ```
 
-The compiled app will be in the `dist` folder - just drag it to Applications.
+#### Windows Build
+```bash
+git clone https://github.com/your_username/KnockThatDoor.git
+cd KnockThatDoor/win64
+pip install pillow pystray win10toast
+python setup.py build
+# Output in build/ directory
+```
 
 ## Troubleshooting
 
-
-You can check che logs by clicking "View Logs" inside the app.
+Use the "View Logs" option to access application logs containing detailed diagnostic information.
 
 ## License
 
-KnockThatDoor is free software under the GNU GPL v3. Basically:
-
-- You can use, modify, and share it
-- If you distribute modified versions, they need to be under the same license
-- No warranties - it might work great or blow up spectacularly
-
+GNU GPL v3. You may use, modify, and distribute this software, but must maintain the same license for derivatives and accept that no warranty is provided.
