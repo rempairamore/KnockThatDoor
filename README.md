@@ -2,7 +2,8 @@
 
 A port knocking utility for macOS and Windows that runs in the system tray/menu bar. This tool enables secure access to servers using the port knocking technique.
 
-![Screenshot of KnockThatDoor](img/screenshot_placeholder.png)
+![Screenshot of KnockThatDoor on macOS](img/screenshot_placeholder.png)
+![Screenshot of KnockThatDoor on Windows 11](win64/img/win-placeholder.png)
 
 ## Port Knocking Overview
 
