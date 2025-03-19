@@ -28,6 +28,13 @@ import pystray
 import tkinter as tk
 from tkinter import ttk, messagebox, font
 
+# Try to import Windows-specific modules
+try:
+    import winreg
+    WINDOWS_PLATFORM = True
+except ImportError:
+    WINDOWS_PLATFORM = False
+
 # Helper function to determine if running as a bundled app
 def is_bundled_app():
     return getattr(sys, 'frozen', False)
@@ -410,8 +417,16 @@ class KnockThatDoorApp:
         
         logging.info(f"Starting KnockThatDoor from {self.script_dir}")
         
+        # Check if app was started automatically at system startup
+        self.is_auto_start = "--autostart" in sys.argv
+        if self.is_auto_start:
+            logging.info("Application was started automatically at system startup")
+        
         # Load configuration
         self.config = self.load_config()
+        
+        # Load user settings
+        self.settings = self.load_settings()
         
         # Service status tracking
         self.service_status = {}
@@ -463,6 +478,51 @@ class KnockThatDoorApp:
             logging.error(f"Error loading config: {e}")
             return {"services": []}
     
+    def load_settings(self):
+        """Load user settings from settings.json"""
+        try:
+            settings_path = get_resource_path('settings.json')
+            
+            logging.info(f"Loading settings from: {settings_path}")
+            
+            if not os.path.exists(settings_path):
+                logging.warning(f"Settings file not found: {settings_path}")
+                # Create default settings
+                default_settings = {
+                    "open_on_startup": False,
+                    "auto_check_interval_minutes": 5
+                }
+                # Save default settings
+                with open(settings_path, 'w') as f:
+                    json.dump(default_settings, f, indent=4)
+                return default_settings
+            
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+            
+            # Ensure the open_on_startup setting exists
+            if "open_on_startup" not in settings:
+                settings["open_on_startup"] = False
+                # Save updated settings
+                with open(settings_path, 'w') as f:
+                    json.dump(settings, f, indent=4)
+            
+            logging.info(f"Loaded settings: {settings}")
+            return settings
+        except Exception as e:
+            logging.error(f"Error loading settings: {e}")
+            return {"open_on_startup": False, "auto_check_interval_minutes": 5}
+    
+    def save_settings(self):
+        """Save user settings to settings.json"""
+        try:
+            settings_path = get_resource_path('settings.json')
+            with open(settings_path, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+            logging.info(f"Saved settings: {self.settings}")
+        except Exception as e:
+            logging.error(f"Error saving settings: {e}")
+    
     def load_icon(self):
         """Load the application icon for system tray"""
         try:
@@ -483,14 +543,39 @@ class KnockThatDoorApp:
         # Create show action
         def show_action(icon, item):
             self.root.after(0, self.show_popup)
-            
-        # Create menu with Show Window as the first item
-        menu = pystray.Menu(
-            pystray.MenuItem("Show Window", show_action, default=True), # This is the important part - default=True
+        
+        # Create startup toggle action
+        def toggle_startup(icon, item):
+            # Toggle the setting
+            self.settings["open_on_startup"] = not self.settings["open_on_startup"]
+            # Update startup registry
+            if self.settings["open_on_startup"]:
+                self.add_to_startup()
+            else:
+                self.remove_from_startup()
+            # Save settings
+            self.save_settings()
+        
+        # Check function for startup menu item
+        def startup_check(item):
+            return self.settings.get("open_on_startup", False)
+        
+        # Create basic menu items
+        menu_items = [
+            pystray.MenuItem("Show Window", show_action, default=True),
             pystray.MenuItem("Edit Config", self.edit_config),
-            pystray.MenuItem("View Logs", self.view_logs),
-            pystray.MenuItem("Exit", self.exit_app)
-        )
+            pystray.MenuItem("View Logs", self.view_logs)
+        ]
+        
+        # Add startup option only on Windows
+        if WINDOWS_PLATFORM:
+            menu_items.insert(1, pystray.MenuItem("Open on Startup", toggle_startup, checked=startup_check))
+        
+        # Add exit option at the end
+        menu_items.append(pystray.MenuItem("Exit", self.exit_app))
+        
+        # Create the menu
+        menu = pystray.Menu(*menu_items)
         
         # Create the icon
         self.icon = pystray.Icon(
@@ -529,15 +614,97 @@ class KnockThatDoorApp:
     
     def run(self):
         """Run the application"""
+        # If open_on_startup is enabled and on Windows, check if we need to set it up
+        if WINDOWS_PLATFORM and self.settings.get("open_on_startup", False):
+            self.add_to_startup()
+        
         # Start the system tray icon in a separate thread
         icon_thread = threading.Thread(target=self.icon.run, daemon=True)
         icon_thread.start()
         
-        # Show the popup window when the app starts
-        self.root.after(1000, self.show_popup)
+        # Only show popup automatically if this is NOT an autostart
+        if not self.is_auto_start:
+            logging.info("Normal startup - showing popup window")
+            self.root.after(1000, self.show_popup)
+        else:
+            logging.info("Autostart - running in background without showing popup")
         
         # Run the tkinter main loop
         self.root.mainloop()
+    
+    def add_to_startup(self):
+        """Add the application to Windows startup"""
+        if not WINDOWS_PLATFORM:
+            logging.warning("Add to startup is only supported on Windows")
+            return False
+            
+        try:
+            # Get the path to the executable
+            if is_bundled_app():
+                app_path = sys.executable
+            else:
+                # For development, it won't actually work, but we'll set it anyway
+                app_path = os.path.join(self.script_dir, 'main.py')
+            
+            # Open the registry key
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, 
+                winreg.KEY_SET_VALUE
+            )
+            
+            # Add --autostart flag to command line so we know it's launched at startup
+            command = f'"{app_path}" --autostart'
+            
+            # Set the value
+            winreg.SetValueEx(
+                key,
+                "KnockThatDoor",
+                0,
+                winreg.REG_SZ,
+                command
+            )
+            
+            # Close the key
+            winreg.CloseKey(key)
+            
+            logging.info(f"Added to startup: {command}")
+            return True
+        except Exception as e:
+            logging.error(f"Error adding to startup: {e}")
+            return False
+    
+    def remove_from_startup(self):
+        """Remove the application from Windows startup"""
+        if not WINDOWS_PLATFORM:
+            logging.warning("Remove from startup is only supported on Windows")
+            return False
+            
+        try:
+            # Open the registry key
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, 
+                winreg.KEY_SET_VALUE
+            )
+            
+            # Try to delete the value
+            try:
+                winreg.DeleteValue(key, "KnockThatDoor")
+            except FileNotFoundError:
+                # Value doesn't exist, which is fine
+                pass
+            
+            # Close the key
+            winreg.CloseKey(key)
+            
+            logging.info("Removed from startup")
+            return True
+        except Exception as e:
+            logging.error(f"Error removing from startup: {e}")
+            return False
     
     def exit_app(self, icon=None, item=None):
         """Exit the application properly"""
