@@ -480,13 +480,13 @@ class KnockThatDoorApp:
     
     def setup_tray_icon(self):
         """Set up the system tray icon"""
-        def on_left_click(icon, item):
-            self.toggle_popup()
-        
-        # Simple menu for right-click
+        # Create show action
+        def show_action(icon, item):
+            self.root.after(0, self.show_popup)
+            
+        # Create menu with Show Window as the first item
         menu = pystray.Menu(
-            pystray.MenuItem("Show/Hide", on_left_click),
-            pystray.MenuItem("Check All", self.check_all_services),
+            pystray.MenuItem("Show Window", show_action, default=True), # This is the important part - default=True
             pystray.MenuItem("Edit Config", self.edit_config),
             pystray.MenuItem("View Logs", self.view_logs),
             pystray.MenuItem("Exit", self.exit_app)
@@ -499,9 +499,16 @@ class KnockThatDoorApp:
             "KnockThatDoor",
             menu
         )
-        
-        # Set left-click action
-        self.icon.on_click = on_left_click
+    
+    def show_popup(self):
+        """Always show the popup window"""
+        if self.popup is None or not self.popup.winfo_exists():
+            self.popup = PopupWindow(self.root, self, self.popup_closed)
+        else:
+            self.popup.deiconify()
+            self.popup.position_window()
+            self.popup.lift()
+            self.popup.update_service_status()
     
     def toggle_popup(self):
         """Show or hide the popup window"""
@@ -525,6 +532,9 @@ class KnockThatDoorApp:
         # Start the system tray icon in a separate thread
         icon_thread = threading.Thread(target=self.icon.run, daemon=True)
         icon_thread.start()
+        
+        # Show the popup window when the app starts
+        self.root.after(1000, self.show_popup)
         
         # Run the tkinter main loop
         self.root.mainloop()

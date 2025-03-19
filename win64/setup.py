@@ -6,6 +6,15 @@ from cx_Freeze import setup, Executable
 # Base directory
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Define icon path explicitly
+icon_path = os.path.join(base_dir, 'img', 'icona.ico')
+
+# Check if icon file exists and print a message
+if os.path.exists(icon_path):
+    print(f"ICON FOUND: {icon_path}")
+else:
+    print(f"WARNING: Icon not found at {icon_path}!")
+
 # Get all files in the img directory
 img_dir = os.path.join(base_dir, 'img')
 img_files = []
@@ -120,7 +129,7 @@ setup(
         Executable(
             "main.py",
             base=base,
-            icon=os.path.join(img_dir, "icona.ico") if os.path.exists(os.path.join(img_dir, "icona.ico")) else None,
+            icon=icon_path,  # Use the defined path directly
             target_name="KnockThatDoor.exe",
             shortcut_name="KnockThatDoor",
             shortcut_dir="ProgramMenuFolder"

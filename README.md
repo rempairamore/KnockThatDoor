@@ -84,7 +84,7 @@ python3 setup.py py2app
 git clone https://github.com/your_username/KnockThatDoor.git
 cd KnockThatDoor/win64
 pip install pillow pystray win10toast
-python setup.py build
+python setup.py build_exe
 # Output in build/ directory
 ```
 
