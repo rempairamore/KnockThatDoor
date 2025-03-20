@@ -14,5 +14,13 @@
       "testing_address_and_port": "190.190.88.88:32400",
       "delay_in_milliseconds": 300
     }
-  ]
+  ],
+  "configurations": {
+    "open_dashboard_at_startup": true,
+    "minimize_to_tray": false,
+    "check_interval_minutes": 30,
+    "auto_knock_enabled": false,
+    "auto_knock_interval_minutes": 30,
+    "open_on_startup": false
+  }
 }

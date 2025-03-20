@@ -89,6 +89,17 @@ python setup.py build_exe
 # Output in build/ directory
 ```
 
+##### "configurations" Section on Windows
+
+This new section inside **conf.json** contains the general application settings:
+
+- `open_dashboard_at_startup`: If `true`, the interface opens automatically when the application starts
+- `minimize_to_tray`: If `true`, the application remains active in the system tray when the window is closed
+- `check_interval_minutes`: Interval in minutes for automatic service status checking
+- `auto_knock_enabled`: If `true`, activates periodic automatic knocking for all configured services
+- `auto_knock_interval_minutes`: Interval in minutes for automatic knocking (relevant only if `auto_knock_enabled` is `true`)
+- `open_on_startup`: If `true`, the application starts automatically with Windows
+
 ## Troubleshooting
 
 Use the "View Logs" option to access application logs containing detailed diagnostic information.

@@ -422,11 +422,8 @@ class KnockThatDoorApp:
         if self.is_auto_start:
             logging.info("Application was started automatically at system startup")
         
-        # Load configuration
+        # Load configuration (which now includes settings)
         self.config = self.load_config()
-        
-        # Load user settings
-        self.settings = self.load_settings()
         
         # Service status tracking
         self.service_status = {}
@@ -467,61 +464,135 @@ class KnockThatDoorApp:
             
             if not os.path.exists(config_path):
                 logging.warning(f"Config file not found: {config_path}")
-                return {"services": []}
+                # Create a default config with empty services and default configurations
+                default_config = {
+                    "services": [],
+                    "configurations": {
+                        "open_dashboard_at_startup": True,
+                        "minimize_to_tray": True,
+                        "check_interval_minutes": 5,
+                        "auto_knock_enabled": False,
+                        "auto_knock_interval_minutes": 30,
+                        "open_on_startup": False
+                    }
+                }
+                # Save default config
+                with open(config_path, 'w') as f:
+                    json.dump(default_config, f, indent=4)
+                return default_config
             
             with open(config_path, 'r') as f:
                 config = json.load(f)
             
-            logging.info(f"Loaded config with {len(config.get('services', []))} services")
+            # Ensure the configurations section exists with default values
+            if "configurations" not in config:
+                # Check if we have an old settings.json file to migrate from
+                old_settings = self._load_old_settings()
+                
+                if old_settings:
+                    # Use the old settings if available
+                    config["configurations"] = old_settings
+                else:
+                    # Set default configurations
+                    config["configurations"] = {
+                        "open_dashboard_at_startup": True,
+                        "minimize_to_tray": True,
+                        "check_interval_minutes": 5,
+                        "auto_knock_enabled": False,
+                        "auto_knock_interval_minutes": 30,
+                        "open_on_startup": False
+                    }
+                
+                # Save the updated config with the new configurations section
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+            
+            logging.info(f"Loaded config with {len(config.get('services', []))} services and configurations")
             return config
         except Exception as e:
             logging.error(f"Error loading config: {e}")
-            return {"services": []}
+            return {"services": [], "configurations": {
+                "open_dashboard_at_startup": True,
+                "minimize_to_tray": True,
+                "check_interval_minutes": 5,
+                "auto_knock_enabled": False,
+                "auto_knock_interval_minutes": 30,
+                "open_on_startup": False
+            }}
     
-    def load_settings(self):
-        """Load user settings from settings.json"""
+    def _load_old_settings(self):
+        """Attempt to load and migrate settings from the old settings.json file"""
         try:
             settings_path = get_resource_path('settings.json')
             
-            logging.info(f"Loading settings from: {settings_path}")
-            
-            if not os.path.exists(settings_path):
-                logging.warning(f"Settings file not found: {settings_path}")
-                # Create default settings
-                default_settings = {
-                    "open_on_startup": False,
-                    "auto_check_interval_minutes": 5
+            if os.path.exists(settings_path):
+                logging.info(f"Found old settings file at: {settings_path}")
+                
+                with open(settings_path, 'r') as f:
+                    old_settings = json.load(f)
+                
+                # Create a new configurations object with all expected values
+                configurations = {
+                    "open_dashboard_at_startup": old_settings.get("open_dashboard_at_startup", True),
+                    "minimize_to_tray": old_settings.get("minimize_to_tray", True),
+                    "check_interval_minutes": old_settings.get("check_interval_minutes", 5),
+                    "auto_knock_enabled": old_settings.get("auto_knock_enabled", False),
+                    "auto_knock_interval_minutes": old_settings.get("auto_knock_interval_minutes", 30),
+                    "open_on_startup": old_settings.get("open_on_startup", False)
                 }
-                # Save default settings
-                with open(settings_path, 'w') as f:
-                    json.dump(default_settings, f, indent=4)
-                return default_settings
-            
-            with open(settings_path, 'r') as f:
-                settings = json.load(f)
-            
-            # Ensure the open_on_startup setting exists
-            if "open_on_startup" not in settings:
-                settings["open_on_startup"] = False
-                # Save updated settings
-                with open(settings_path, 'w') as f:
-                    json.dump(settings, f, indent=4)
-            
-            logging.info(f"Loaded settings: {settings}")
-            return settings
+                
+                logging.info(f"Successfully migrated settings from {settings_path}")
+                
+                # Optionally, you can rename or delete the old settings file
+                backup_path = f"{settings_path}.backup"
+                os.rename(settings_path, backup_path)
+                logging.info(f"Renamed old settings file to {backup_path}")
+                
+                return configurations
+            else:
+                return None
+                
         except Exception as e:
-            logging.error(f"Error loading settings: {e}")
-            return {"open_on_startup": False, "auto_check_interval_minutes": 5}
+            logging.error(f"Error loading old settings: {e}")
+            return None
     
-    def save_settings(self):
-        """Save user settings to settings.json"""
+    def save_config(self):
+        """Save the full configuration to conf.json"""
         try:
-            settings_path = get_resource_path('settings.json')
-            with open(settings_path, 'w') as f:
-                json.dump(self.settings, f, indent=4)
-            logging.info(f"Saved settings: {self.settings}")
+            config_path = get_resource_path('conf.json')
+            
+            # Make sure we're not missing any expected configurations
+            self._ensure_all_configurations()
+            
+            # Save the config
+            with open(config_path, 'w') as f:
+                json.dump(self.config, f, indent=4)
+                
+            logging.info(f"Saved config to {config_path}")
         except Exception as e:
-            logging.error(f"Error saving settings: {e}")
+            logging.error(f"Error saving config: {e}")
+    
+    def _ensure_all_configurations(self):
+        """Ensure all expected configurations are present with default values if not"""
+        if "configurations" not in self.config:
+            self.config["configurations"] = {}
+            
+        configurations = self.config["configurations"]
+        
+        # Default values
+        defaults = {
+            "open_dashboard_at_startup": True,
+            "minimize_to_tray": True,
+            "check_interval_minutes": 5,
+            "auto_knock_enabled": False,
+            "auto_knock_interval_minutes": 30,
+            "open_on_startup": False
+        }
+        
+        # Add any missing configurations with default values
+        for key, default_value in defaults.items():
+            if key not in configurations:
+                configurations[key] = default_value
     
     def load_icon(self):
         """Load the application icon for system tray"""
@@ -547,18 +618,21 @@ class KnockThatDoorApp:
         # Create startup toggle action
         def toggle_startup(icon, item):
             # Toggle the setting
-            self.settings["open_on_startup"] = not self.settings["open_on_startup"]
-            # Update startup registry
-            if self.settings["open_on_startup"]:
+            configurations = self.config.get("configurations", {})
+            configurations["open_on_startup"] = not configurations.get("open_on_startup", False)
+            
+            # Update Windows registry
+            if configurations["open_on_startup"]:
                 self.add_to_startup()
             else:
                 self.remove_from_startup()
-            # Save settings
-            self.save_settings()
+            
+            # Save updated configurations
+            self.save_config()
         
         # Check function for startup menu item
         def startup_check(item):
-            return self.settings.get("open_on_startup", False)
+            return self.config.get("configurations", {}).get("open_on_startup", False)
         
         # Create basic menu items
         menu_items = [
@@ -610,24 +684,41 @@ class KnockThatDoorApp:
     
     def popup_closed(self):
         """Callback when popup is closed"""
-        pass  # We just let it close
+        # Check if minimize_to_tray is enabled
+        minimize_to_tray = self.config.get("configurations", {}).get("minimize_to_tray", True)
+        
+        if not minimize_to_tray:
+            # If minimize_to_tray is disabled, we could exit the application here
+            # But for now, we'll just log this for potential future enhancement
+            logging.info("minimize_to_tray setting detected, but keeping app running in tray")
+            
+        # We just let it close
+        pass
     
     def run(self):
         """Run the application"""
         # If open_on_startup is enabled and on Windows, check if we need to set it up
-        if WINDOWS_PLATFORM and self.settings.get("open_on_startup", False):
+        configurations = self.config.get("configurations", {})
+        if WINDOWS_PLATFORM and configurations.get("open_on_startup", False):
             self.add_to_startup()
         
         # Start the system tray icon in a separate thread
         icon_thread = threading.Thread(target=self.icon.run, daemon=True)
         icon_thread.start()
         
-        # Only show popup automatically if this is NOT an autostart
+        # Check if we should show the window based on configuration and startup mode
+        should_show_window = False
+        
+        # If we're not auto-starting, check the open_dashboard_at_startup setting
         if not self.is_auto_start:
-            logging.info("Normal startup - showing popup window")
+            should_show_window = configurations.get("open_dashboard_at_startup", True)
+            
+        # Show popup if needed
+        if should_show_window:
+            logging.info("Showing popup window based on configuration")
             self.root.after(1000, self.show_popup)
         else:
-            logging.info("Autostart - running in background without showing popup")
+            logging.info("Not showing popup window based on configuration")
         
         # Run the tkinter main loop
         self.root.mainloop()
@@ -772,6 +863,9 @@ class KnockThatDoorApp:
         
         # Check service status
         self.check_all_services()
+        
+        # Restart timers with new configuration
+        self.start_auto_check_timer()
     
     def edit_config(self, icon=None, item=None):
         """Open the configuration file in the default editor"""
@@ -1044,19 +1138,54 @@ class KnockThatDoorApp:
     
     def start_auto_check_timer(self):
         """Start a timer to periodically check services"""
-        # Check every 5 minutes
-        check_interval = 5 * 60 * 1000  # In milliseconds for tkinter
+        # Cancel any existing timers
+        if hasattr(self, '_check_timer_id') and self._check_timer_id:
+            try:
+                self.root.after_cancel(self._check_timer_id)
+            except:
+                pass
+            
+        if hasattr(self, '_knock_timer_id') and self._knock_timer_id:
+            try:
+                self.root.after_cancel(self._knock_timer_id)
+            except:
+                pass
         
+        # Get configuration values
+        configurations = self.config.get("configurations", {})
+        check_interval_minutes = configurations.get("check_interval_minutes", 5)
+        auto_knock_enabled = configurations.get("auto_knock_enabled", False)
+        auto_knock_interval_minutes = configurations.get("auto_knock_interval_minutes", 30)
+        
+        # Convert to milliseconds for tkinter
+        check_interval = check_interval_minutes * 60 * 1000
+        auto_knock_interval = auto_knock_interval_minutes * 60 * 1000
+        
+        # Define the check function
         def check_services():
-            # Don't perform check if we're shutting down
             if not self.is_shutting_down:
+                logging.info(f"Running scheduled service check (every {check_interval_minutes} minutes)")
                 self.check_all_services()
-                # Schedule next check only if we're not shutting down
-                self.root.after(check_interval, check_services)
+                # Schedule next check
+                self._check_timer_id = self.root.after(check_interval, check_services)
         
-        # Schedule first check
-        self.root.after(check_interval, check_services)
-        logging.info(f"Automatic service checking scheduled every {check_interval/60000} minutes")
+        # Define the knock function if enabled
+        def auto_knock():
+            if not self.is_shutting_down and auto_knock_enabled:
+                logging.info(f"Running scheduled auto-knock (every {auto_knock_interval_minutes} minutes)")
+                # Perform knocking for all services
+                for service in self.config.get("services", []):
+                    threading.Thread(target=self.perform_knock, args=(service,), daemon=True).start()
+                # Schedule next knock
+                self._knock_timer_id = self.root.after(auto_knock_interval, auto_knock)
+        
+        # Start timers
+        self._check_timer_id = self.root.after(check_interval, check_services)
+        logging.info(f"Automatic service checking scheduled every {check_interval_minutes} minutes")
+        
+        if auto_knock_enabled:
+            self._knock_timer_id = self.root.after(auto_knock_interval, auto_knock)
+            logging.info(f"Automatic knocking scheduled every {auto_knock_interval_minutes} minutes")
 
 def main():
     """Main entry point for the application"""
